@@ -1,0 +1,10 @@
+{
+  "version": "v9",
+  "updated": "2026-11-23",
+  "features": [
+    "click-title-refresh-update",
+    "inline-version-badge",
+    "always-visible-app-install",
+    "existing-v8-features-preserved"
+  ]
+}

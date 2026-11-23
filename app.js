@@ -43,4 +43,69 @@ $('noteDrag').addEventListener('pointerdown',e=>{if(e.target.closest('button'))r
 $('noteDrag').addEventListener('pointermove',e=>{if(!dragStart)return;const w=notePanel.offsetWidth,h=notePanel.offsetHeight;const x=Math.max(0,Math.min(innerWidth-w,dragStart.left+(e.clientX-dragStart.x)));const y=Math.max(0,Math.min(innerHeight-h,dragStart.top+(e.clientY-dragStart.y)));notePanel.style.left=x+'px';notePanel.style.top=y+'px';notePanel.style.right='auto';notePanel.style.bottom='auto'});$('noteDrag').addEventListener('pointerup',()=>dragStart=null);$('noteDrag').addEventListener('pointercancel',()=>dragStart=null);
 $('openVideoLibrary').addEventListener('click',()=>{$('videoLibraryStatus').textContent=$('mobileFileStatus').textContent||'MP4를 선택하세요.';$('videoLibraryModal').hidden=false});$('closeVideoLibrary').addEventListener('click',()=>$('videoLibraryModal').hidden=true);$('pickManyDialog').addEventListener('click',()=>$('multipleFiles').click());$('pickOneDialog').addEventListener('click',()=>$('singleFile').click());
 $('mobileRegister').addEventListener('click',()=>$('multipleFiles').click());$('mobileRegisterSingle').addEventListener('click',()=>$('singleFile').click());$('registerBtn').addEventListener('click',()=>$('singleFile').click());$('registerAllBtn').addEventListener('click',()=>$('multipleFiles').click());$('singleFile').addEventListener('change',e=>{importFiles([...e.target.files],true);e.target.value=''});$('multipleFiles').addEventListener('change',e=>{importFiles([...e.target.files]);e.target.value=''});
-$('updateBtn').addEventListener('click',async()=>{const btn=$('updateBtn');btn.textContent='확인 중…';try{if('serviceWorker' in navigator){const reg=await navigator.serviceWorker.getRegistration();await reg?.update();if(reg?.waiting){reg.waiting.postMessage({type:'SKIP_WAITING'});return}}const r=await fetch('index.html?update='+Date.now(),{cache:'no-store'});if(r.ok){location.reload()}else throw Error()}catch{alert('업데이트 확인에 실패했습니다. 인터넷 연결을 확인해 주세요.')}finally{btn.textContent='↻'}});if('serviceWorker' in navigator&&location.protocol==='https:'){navigator.serviceWorker.register('./sw.js').catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload())}window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;$('installBtn').hidden=false});$('installBtn').addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;$('installBtn').hidden=true});start();
+// v9: clicking the app brand checks the latest shell, updates its service worker, then refreshes.
+// Does not clear localStorage or IndexedDB; existing MP4 / memos / manualDone stay untouched.
+let refreshingApp=false;
+async function refreshApp(){
+  if(refreshingApp)return;
+  refreshingApp=true;
+  const button=$('updateBtn'),hint=$('updateHint');
+  button.classList.add('busy');
+  if(hint)hint.textContent='업데이트 확인 중…';
+  try{
+    // Fresh network request, rather than reading a previously cached index page.
+    const response=await fetch('./version.json?check='+Date.now(),{cache:'no-store'});
+    if(!response.ok)throw Error('인터넷 또는 GitHub Pages 연결 오류');
+    const version=await response.json();
+    if(version?.version && $('versionBadge'))$('versionBadge').textContent=String(version.version);
+    if('serviceWorker' in navigator){
+      const registration=await navigator.serviceWorker.getRegistration('./');
+      if(registration){
+        await registration.update();
+        if(registration.waiting){
+          // Skip waiting is safe here: refresh is explicitly requested by the user.
+          registration.waiting.postMessage({type:'SKIP_WAITING'});
+        }
+        if(registration.installing){
+          await Promise.race([new Promise(resolve=>{
+            const sw=registration.installing;
+            sw.addEventListener('statechange',()=>{if(sw.state==='activated'||sw.state==='installed'||sw.state==='redundant')resolve()});
+          }),new Promise(resolve=>setTimeout(resolve,5000))]);
+        }
+      }
+    }
+    // Keep local records and re-fetch the HTML with a versioned URL.
+    location.replace('./index.html?refresh='+Date.now());
+  }catch(err){
+    alert('최신 버전을 확인하지 못했습니다. 인터넷 연결과 GitHub Pages 게시 상태를 확인해 주세요.\n'+(err.message||err));
+    if(hint)hint.textContent='제목을 눌러 최신 버전 확인';
+    button.classList.remove('busy');refreshingApp=false;
+  }
+}
+$('updateBtn').addEventListener('click',refreshApp);
+if('serviceWorker' in navigator && location.protocol==='https:'){
+  navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).catch(()=>{});
+}
+// The install button is intentionally visible even when install-prompt events are unsupported.
+window.addEventListener('beforeinstallprompt',event=>{event.preventDefault();deferredPrompt=event;});
+window.addEventListener('appinstalled',()=>{deferredPrompt=null;});
+$('installBtn').addEventListener('click',async()=>{
+  if(deferredPrompt){
+    const prompt=deferredPrompt;deferredPrompt=null;
+    await prompt.prompt();
+    await prompt.userChoice;
+    return;
+  }
+  if(window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone){
+    alert('이미 앱으로 실행 중입니다.');return;
+  }
+  const ua=navigator.userAgent||'';
+  if(/iPhone|iPad|iPod/i.test(ua)){
+    alert('iPhone / iPad에서는 Safari로 앱 주소를 연 뒤 공유 버튼 → 홈 화면에 추가를 선택하세요.');
+  }else if(/KAKAOTALK/i.test(ua)){
+    alert('카카오톡 화면에서는 앱 설치가 제한됩니다. 오른쪽 위 메뉴에서 Chrome 등 외부 브라우저로 열고 메뉴 → 홈 화면에 추가 또는 앱 설치를 선택하세요.');
+  }else{
+    alert('브라우저의 메뉴(⋮ 또는 ⋯)에서 ‘앱 설치’ 또는 ‘홈 화면에 추가’를 선택하세요. 설치 메뉴가 보이지 않으면 Chrome 또는 Edge에서 HTTPS 앱 주소를 열어 주세요.');
+  }
+});
+start();
