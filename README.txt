@@ -1,10 +1,11 @@
-똑띠 생활영어 v3 - 로컬 영상 보관형 (인턴 쉐도잉 v45 방식)
+하루 10분 30일 생활영어 v5 — 확정 아이콘 반영
 
-1. 압축 해제 후 파일 6개(index.html, app.js, lessons.json, sw.js, icon.svg, manifest.webmanifest)를 GitHub 저장소 doktti-english-US 루트에 업로드합니다.
-2. GitHub Settings > Pages > Deploy from a branch > main /(root) > Save.
-3. https://beediary49.github.io/doktti-english-US/ 에 접속합니다.
-4. '영상 여러 개 자동 등록'으로 사용자가 보유한 원본 MP4 27개를 한 번 선택합니다. 재생시간으로 각 일차와 매칭됩니다.
-5. 자동 연결에 실패한 영상은 해당 일차를 선택하고 '현재 일차 영상 등록'으로 수동 연결합니다.
-6. 영상은 해당 기기의 브라우저 IndexedDB에 저장되므로 처음 등록 후 재선택 없이 재생합니다. 다른 기기에서는 별도 등록이 필요합니다. 브라우저 데이터 삭제, 저장공간 부족, 비공개 모드 등에 따라 영상이 사라질 수 있습니다.
+- 사용자가 직접 선택한 아이콘 원본(icon-original.png)을 적용했습니다.
+- icon-192.png / icon-512.png : 앱 기본 아이콘
+- icon-maskable-192.png / icon-maskable-512.png : 갤럭시/안드로이드 적응형 아이콘
+- v4의 로컬 영상 등록, IndexedDB 영상 보관, 구간 반복, 자막 학습을 유지합니다.
+- MP4 파일을 포함하지 않습니다.
 
-중요: 동영상은 ZIP에 포함되지 않으며 앱이 영상을 다운로드하지 않습니다. 사용자 소유·이용 권한이 있는 영상만 등록하세요. 웹앱 안에 자막 데이터를 게시하는 것에도 권리 문제가 있을 수 있으니 공유 권한을 확인하세요.
+배포: ZIP 압축을 풀고 모든 파일을 GitHub 저장소 beediary49/doktti-english-US 최상위에 올린 뒤 Commit changes 하세요. GitHub Pages는 main / (root)로 설정합니다.
+
+기존 설치 앱 아이콘이 캐시되어 보이면 앱 업데이트 후 브라우저 새로고침 또는 재설치가 필요할 수 있습니다. 사이트 데이터를 삭제하면 저장된 영상과 학습 기록이 사라질 수 있으니 삭제하지 마세요.
