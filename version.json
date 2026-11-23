@@ -1,5 +1,5 @@
 {
-  "version": "v17",
+  "version": "v20",
   "updated": "2026-11-23",
   "features": [
     "v12-features-preserved",
@@ -13,6 +13,10 @@
     "slightly-larger-buttons-and-script-text",
     "stable-video-height-during-keyboard",
     "memo-vertical-drag-keyboard-crossing",
-    "memo-does-not-block-script-scroll"
+    "memo-does-not-block-script-scroll",
+    "star-and-memo-icons-swapped",
+    "memo-save-button-bottom-right",
+    "memo-open-freezes-video-player-rectangle",
+    "memo-open-only-script-scrolls"
   ]
 }
