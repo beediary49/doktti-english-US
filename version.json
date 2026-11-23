@@ -1,10 +1,11 @@
 {
-  "version": "v9",
+  "version": "v10",
   "updated": "2026-11-23",
   "features": [
-    "click-title-refresh-update",
-    "inline-version-badge",
-    "always-visible-app-install",
-    "existing-v8-features-preserved"
+    "fixed-video-and-header",
+    "scrollable-sentences-only",
+    "removed-right-play-button",
+    "tap-sentence-to-play",
+    "existing-v9-features-preserved"
   ]
 }
