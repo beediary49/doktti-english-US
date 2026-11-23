@@ -36,94 +36,114 @@ $('prev').addEventListener('click',()=>playIndex(index-1));$('next').addEventLis
 function openMemo(targetIndex=index){if(!lesson)return;memoContextIndex=Math.max(0,Math.min(targetIndex,lesson.lines.length-1));const cue=lesson.lines[memoContextIndex];const key=lesson.id+'@'+memoContextIndex;$('memoContext').textContent=`${lesson.title} · ${cue?.text||''} (${stamp(cue?.start||0)} – ${stamp(cue?.end||0)})`;$('memoText').value=state.memos[key]??state.memos[lesson.id]??'';$('memoModal').hidden=false;positionNote();}
 function saveMemo(close=false){if(!lesson||memoContextIndex===null)return;state.memos[lesson.id+'@'+memoContextIndex]=$('memoText').value;save();if(close)$('memoModal').hidden=true;renderList()}
 $('memoSave').addEventListener('click',()=>saveMemo(true));
-// v14 (based on v12): move the floating memo vertically only, including behind
-// the keyboard's top edge. Never snap it back to the visualViewport bottom.
+// v17: keep the lesson/video frame fixed, even when Samsung keyboard is shown.
+// The floating memo is movable only vertically. A short downward swipe while
+// keyboard is present may move it all the way behind the keyboard boundary.
 const notePanel=$('notePanel');
 const noteHandle=$('noteDrag');
 const memoField=$('memoText');
+const memoViewport=()=>window.visualViewport;
 let dragStart=null;
 let memoKeyboardActive=false;
-let noteFullHeight=Math.max(window.innerHeight,document.documentElement.clientHeight);
 let memoPreKeyboardTop=null;
-let memoWasDraggedWithKeyboard=false;
-const memoViewport=()=>window.visualViewport;
+let memoDraggedDuringKeyboard=false;
+let noteFullHeight=Math.max(window.innerHeight,document.documentElement.clientHeight);
+let lockedOrientation=screen.orientation?.type||'';
 function isMemoKeyboardOpen(){
  const vv=memoViewport();
  if(!vv||document.activeElement!==memoField)return false;
- const layoutHeight=Math.max(noteFullHeight,document.documentElement.clientHeight,window.innerHeight);
- return layoutHeight-(vv.height+Math.max(0,vv.offsetTop))>125;
+ return noteFullHeight-(vv.height+Math.max(0,vv.offsetTop))>110;
 }
+function lockAppHeight(){
+ // A keyboard resize must not collapse the 16:9 video or move the app itself.
+ if(isMemoKeyboardOpen())return;
+ // If the keyboard is still animating away, postpone the size update.
+ if(memoKeyboardActive)return;
+ const next=Math.max(window.innerHeight,document.documentElement.clientHeight);
+ if(next>0){noteFullHeight=next;document.documentElement.style.setProperty('--doktti-locked-height',next+'px')}
+}
+document.documentElement.style.setProperty('--doktti-locked-height',noteFullHeight+'px');
 function positionNote(){
  dragStart=null;
  notePanel.style.top='';notePanel.style.bottom='';
  notePanel.style.left='';notePanel.style.right='';
- memoPreKeyboardTop=null;memoWasDraggedWithKeyboard=false;
- memoKeyboardActive=false;
+ memoKeyboardActive=false;memoPreKeyboardTop=null;memoDraggedDuringKeyboard=false;
 }
 function memoAllowedY(y){
- // Use the full layout height rather than visualViewport.height while the
- // keyboard is open. The panel may therefore slide BEHIND the keyboard.
  const vv=memoViewport();
  const keyboard=isMemoKeyboardOpen();
- const viewTop=vv?.offsetTop||0;
- const upper=viewTop+6;
- const fullHeight=Math.max(noteFullHeight,window.innerHeight,document.documentElement.clientHeight);
- // When keyboard is closed keep the whole note reachable; when open allow
- // the title to move under the keyboard, nearly to the original screen bottom.
- const lower=keyboard?fullHeight-30:Math.max(upper,viewTop+(vv?.height||window.innerHeight)-notePanel.offsetHeight-6);
- return Math.max(upper,Math.min(lower,y));
+ const top=Math.max(6,vv?.offsetTop||0);
+ // The maximum position is based on the FULL screen, not visualViewport.height.
+ // This deliberately allows the memo to be behind the Android IME.
+ const bottom=keyboard?Math.max(top,noteFullHeight-12):Math.max(top,(vv?.offsetTop||0)+(vv?.height||noteFullHeight)-notePanel.offsetHeight-6);
+ return Math.max(top,Math.min(bottom,y));
 }
 noteHandle.addEventListener('pointerdown',e=>{
  if(e.button!==undefined&&e.button!==0)return;
- // Keep the textarea focused so Android does not dismiss the keyboard when
- // dragging the title bar.
- e.preventDefault();
+ e.preventDefault(); // Preserve textarea focus and keep the keyboard open.
  dragStart={pointerId:e.pointerId,fromY:e.clientY,top:notePanel.getBoundingClientRect().top};
  noteHandle.setPointerCapture(e.pointerId);
 });
 noteHandle.addEventListener('pointermove',e=>{
  if(!dragStart||e.pointerId!==dragStart.pointerId)return;
- const next=memoAllowedY(dragStart.top+(e.clientY-dragStart.fromY));
- notePanel.style.top=next+'px';notePanel.style.bottom='auto';
- if(isMemoKeyboardOpen())memoWasDraggedWithKeyboard=true;
+ e.preventDefault();
+ const dy=e.clientY-dragStart.fromY;
+ // Since fingers cannot drag inside the physical keyboard, amplify only the
+ // downward movement with keyboard open so the panel can cross its top edge.
+ const scaled=isMemoKeyboardOpen()&&dy>0?dy*2.8:dy;
+ const y=memoAllowedY(dragStart.top+scaled);
+ notePanel.style.top=y+'px';notePanel.style.bottom='auto';
+ // Never move the memo horizontally; left/right remain at their CSS positions.
+ if(isMemoKeyboardOpen())memoDraggedDuringKeyboard=true;
 });
-function stopNoteDrag(e){
+function finishNoteDrag(e){
  if(!dragStart||e.pointerId!==dragStart.pointerId)return;
  dragStart=null;
  if(noteHandle.hasPointerCapture?.(e.pointerId))noteHandle.releasePointerCapture(e.pointerId);
 }
-noteHandle.addEventListener('pointerup',stopNoteDrag);
-noteHandle.addEventListener('pointercancel',stopNoteDrag);
+noteHandle.addEventListener('pointerup',finishNoteDrag);
+noteHandle.addEventListener('pointercancel',finishNoteDrag);
 function watchMemoViewport(){
  if($('memoModal').hidden)return;
- const open=isMemoKeyboardOpen();
- if(open&&!memoKeyboardActive){
+ const keyboard=isMemoKeyboardOpen();
+ if(keyboard&&!memoKeyboardActive){
   memoKeyboardActive=true;
   memoPreKeyboardTop=notePanel.getBoundingClientRect().top;
-  memoWasDraggedWithKeyboard=false;
-  // Intentionally no automatic reposition when opening the keyboard.
- }else if(!open&&memoKeyboardActive){
+  memoDraggedDuringKeyboard=false;
+  // Do not auto-move the note: the learner decides how far to drag it.
+ }else if(!keyboard&&memoKeyboardActive){
   memoKeyboardActive=false;
   const restore=memoPreKeyboardTop;
   memoPreKeyboardTop=null;
   requestAnimationFrame(()=>{
    if($('memoModal').hidden||dragStart)return;
-   const y=memoWasDraggedWithKeyboard&&Number.isFinite(restore)?restore:notePanel.getBoundingClientRect().top;
-   notePanel.style.top=memoAllowedY(y)+'px';
-   notePanel.style.bottom='auto';
-   memoWasDraggedWithKeyboard=false;
+   const y=memoDraggedDuringKeyboard&&Number.isFinite(restore)?restore:notePanel.getBoundingClientRect().top;
+   notePanel.style.top=memoAllowedY(y)+'px';notePanel.style.bottom='auto';
+   memoDraggedDuringKeyboard=false;
+   lockAppHeight();
   });
- }else if(!open&&!dragStart&&notePanel.style.top){
+ }else if(!keyboard&&!dragStart&&notePanel.style.top){
   notePanel.style.top=memoAllowedY(notePanel.getBoundingClientRect().top)+'px';
  }
 }
 memoField.addEventListener('focus',()=>requestAnimationFrame(watchMemoViewport));
-memoField.addEventListener('blur',()=>setTimeout(watchMemoViewport,80));
+memoField.addEventListener('blur',()=>setTimeout(()=>{watchMemoViewport();lockAppHeight()},250));
 window.visualViewport?.addEventListener('resize',watchMemoViewport);
 window.visualViewport?.addEventListener('scroll',watchMemoViewport);
 window.addEventListener('resize',()=>{
- if(!isMemoKeyboardOpen())noteFullHeight=Math.max(noteFullHeight,window.innerHeight,document.documentElement.clientHeight);
  watchMemoViewport();
+ if(!isMemoKeyboardOpen()&&!memoKeyboardActive){
+  // Browser chrome bars may also resize; ignore keyboard-sized shrink events.
+  const h=Math.max(window.innerHeight,document.documentElement.clientHeight);
+  if(h>=noteFullHeight-90)lockAppHeight();
+ }
+});
+window.addEventListener('orientationchange',()=>{
+ setTimeout(()=>{
+  memoKeyboardActive=false;
+  noteFullHeight=Math.max(window.innerHeight,document.documentElement.clientHeight);
+  lockAppHeight();watchMemoViewport();
+ },400);
 });
 $('openVideoLibrary').addEventListener('click',()=>{$('videoLibraryStatus').textContent=$('mobileFileStatus').textContent||'MP4를 선택하세요.';$('videoLibraryModal').hidden=false});$('closeVideoLibrary').addEventListener('click',()=>$('videoLibraryModal').hidden=true);$('pickManyDialog').addEventListener('click',()=>$('multipleFiles').click());$('pickOneDialog').addEventListener('click',()=>$('singleFile').click());
 $('mobileRegister').addEventListener('click',()=>$('multipleFiles').click());$('mobileRegisterSingle').addEventListener('click',()=>$('singleFile').click());$('registerBtn').addEventListener('click',()=>$('singleFile').click());$('registerAllBtn').addEventListener('click',()=>$('multipleFiles').click());$('singleFile').addEventListener('change',e=>{importFiles([...e.target.files],true);e.target.value=''});$('multipleFiles').addEventListener('change',e=>{importFiles([...e.target.files]);e.target.value=''});

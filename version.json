@@ -1,5 +1,5 @@
 {
-  "version": "v16",
+  "version": "v17",
   "updated": "2026-11-23",
   "features": [
     "v12-features-preserved",
@@ -10,6 +10,9 @@
     "manual-completion-button-right-of-star",
     "completion-button-removed-from-memo",
     "manual-completion-only",
-    "slightly-larger-buttons-and-script-text"
+    "slightly-larger-buttons-and-script-text",
+    "stable-video-height-during-keyboard",
+    "memo-vertical-drag-keyboard-crossing",
+    "memo-does-not-block-script-scroll"
   ]
 }
