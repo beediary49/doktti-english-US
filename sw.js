@@ -1,4 +1,4 @@
-const CACHE='doktti-shell-v11';
+const CACHE='doktti-shell-v12';
 const SHELL=['./','./index.html','./app.js','./lessons.json','./manifest.webmanifest','./version.json','./icon-192.png','./icon-512.png','./icon-maskable-192.png','./icon-maskable-512.png','./icon-original.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{

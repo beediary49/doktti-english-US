@@ -1,10 +1,11 @@
 {
-  "version": "v11",
+  "version": "v12",
   "updated": "2026-11-23",
   "features": [
-    "v10-features-preserved",
-    "memo-vertical-only-drag",
-    "memo-does-not-block-sentence-scroll",
-    "fixed-video-when-memo-open"
+    "v11-features-preserved",
+    "memo-repositions-above-phone-keyboard",
+    "memo-save-visible-with-keyboard",
+    "memo-returns-after-keyboard-closes",
+    "fixed-video-and-independent-sentence-scroll"
   ]
 }
