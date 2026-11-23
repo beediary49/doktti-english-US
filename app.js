@@ -35,7 +35,7 @@ async function start(){try{const response=await fetch('lessons.json',{cache:'no-
 $('prev').addEventListener('click',()=>playIndex(index-1));$('next').addEventListener('click',next);$('repeat').addEventListener('click',()=>{repeat=!repeat;$('repeat').textContent=repeat?'↻ 구간 반복: ON':'↻ 구간 반복: OFF';$('repeat').classList.toggle('on',repeat)});$('speed').addEventListener('change',()=>{video.playbackRate=+$('speed').value;save()});$('search').addEventListener('input',e=>{search=e.target.value;renderList()});$('favoritesOnly').addEventListener('click',()=>{favoritesOnly=!favoritesOnly;$('favoritesOnly').classList.toggle('on',favoritesOnly);$('favoritesOnly').textContent=favoritesOnly?'★ 즐겨찾기만':'☆ 즐겨찾기';renderList()});video.addEventListener('seeking',()=>{if(!lesson)return;const sec=video.currentTime;const found=lesson.lines.findIndex((s,i)=>sec>=s.start&&sec<(lesson.lines[i+1]?.start??s.end));if(found>=0&&found!==index){index=found;setActive();save()}});video.addEventListener('play',()=>{if(!playingSegment&&line())playingSegment=true});video.addEventListener('ended',()=>{playingSegment=false;updateStatus()});
 function openMemo(targetIndex=index){if(!lesson)return;memoContextIndex=Math.max(0,Math.min(targetIndex,lesson.lines.length-1));const cue=lesson.lines[memoContextIndex];const key=lesson.id+'@'+memoContextIndex;$('memoContext').textContent=`${lesson.title} · ${cue?.text||''} (${stamp(cue?.start||0)} – ${stamp(cue?.end||0)})`;$('memoText').value=state.memos[key]??state.memos[lesson.id]??'';updateCompleteButton();$('memoModal').hidden=false;positionNote();if(!memoKeyboardActive){$('memoModal').classList.remove('memo-keyboard-open');notePanel.style.removeProperty('--memo-keyboard-available');}}
 function updateCompleteButton(){const done=!!state.manualDone[lesson?.id]?.[memoContextIndex];$('memoComplete').textContent=done?'✓ 학습 완료됨':'✓ 학습 완료';$('memoComplete').classList.toggle('on',done)}
-function saveMemo(close=false){if(!lesson||memoContextIndex===null)return;state.memos[lesson.id+'@'+memoContextIndex]=$('memoText').value;save();if(close)$('memoModal').hidden=true;renderList()}
+function saveMemo(close=false){if(!lesson||memoContextIndex===null)return;state.memos[lesson.id+'@'+memoContextIndex]=$('memoText').value;save();if(close){$('memoModal').hidden=true;restoreMemoAfterKeyboard()}renderList()}
 $('memoSave').addEventListener('click',()=>saveMemo(true));$('memoComplete').addEventListener('click',()=>{if(!lesson||memoContextIndex===null)return;state.manualDone[lesson.id]??={};state.manualDone[lesson.id][memoContextIndex]=!state.manualDone[lesson.id][memoContextIndex];saveMemo(false);updateCompleteButton()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('memoModal').hidden=true;$('videoLibraryModal').hidden=true}});
 // v11: floating memo moves vertically only; retain CSS-defined horizontal anchor.
 // Transparent backdrop lets the sentence list keep scrolling while video/header remain fixed.
@@ -81,59 +81,80 @@ function keepNoteVisible(){
 window.addEventListener('resize',keepNoteVisible);
 window.visualViewport?.addEventListener('resize',keepNoteVisible);
 
-// v12: mobile virtual-keyboard adaptation. Position the floating memo immediately
-// above the keyboard, leaving the fixed video and scrolling sentence list unchanged.
+// v13: A keyboard must never force the floating memo UP over the video.
+// When editing on a phone, park the memo just BELOW the top of the keyboard.
+// Keep textarea focus/keyboard alive; after keyboard closes, restore memo position.
 const memoField=$('memoText');
 let memoPreKeyboardTop=null;
 let memoKeyboardActive=false;
-let memoNormalViewportHeight=Math.max(window.innerHeight,document.documentElement.clientHeight,window.visualViewport?.height||0);
-function memoVisibleArea(){
- const vv=window.visualViewport;
- return {top:vv?.offsetTop||0,height:vv?.height||window.innerHeight};
+let memoFocusPending=false;
+let memoFocusTimer=null;
+const memoViewport=()=>window.visualViewport;
+let memoNormalViewportHeight=Math.max(window.innerHeight,document.documentElement.clientHeight,memoViewport()?.height||0);
+function memoKeyboardBounds(){
+ const vv=memoViewport();
+ const base=Math.max(memoNormalViewportHeight,document.documentElement.clientHeight,window.innerHeight);
+ // Android Chrome: visualViewport shrinks. Some in-app browsers do not report it,
+ // so use a conservative lower-screen fallback when the textarea stays focused.
+ const shrunk=!!vv && base-vv.height>110;
+ const boundary=shrunk?(vv.offsetTop+vv.height):Math.round(base*0.62);
+ return {shrunk,boundary};
 }
-function memoKeyboardDetected(){
- const vv=window.visualViewport;
- if(!vv)return false;
- // Detect a meaningful reduction rather than ordinary browser chrome movement.
- const baseline=Math.max(memoNormalViewportHeight,document.documentElement.clientHeight,window.innerHeight);
- return baseline-vv.height>125;
+function parkMemoUnderKeyboard(){
+ if($('memoModal').hidden||!memoKeyboardActive)return;
+ const {boundary}=memoKeyboardBounds();
+ // In screen coordinates, place the FULL memo window underneath the keyboard.
+ // Do NOT subtract the note height (the v12 behavior caused the obstruction).
+ notePanel.style.top=Math.round(boundary+10)+'px';
+ notePanel.style.bottom='auto';
+}
+function restoreMemoAfterKeyboard(){
+ if(!memoKeyboardActive)return;
+ memoKeyboardActive=false;
+ memoFocusPending=false;
+ $('memoModal').classList.remove('memo-keyboard-open');
+ notePanel.style.removeProperty('--memo-keyboard-available');
+ const previous=memoPreKeyboardTop;
+ memoPreKeyboardTop=null;
+ requestAnimationFrame(()=>{
+  if($('memoModal').hidden)return;
+  notePanel.style.top=clampNoteY(Number.isFinite(previous)?previous:notePanel.getBoundingClientRect().top)+'px';
+  notePanel.style.bottom='auto';
+ });
 }
 function accommodateMemoKeyboard(){
- if($('memoModal').hidden)return;
+ if($('memoModal').hidden){restoreMemoAfterKeyboard();return}
  const focused=document.activeElement===memoField;
- if(!focused) memoNormalViewportHeight=Math.max(window.innerHeight,document.documentElement.clientHeight,window.visualViewport?.height||0);
- const open=focused&&memoKeyboardDetected();
- const visible=memoVisibleArea();
- if(open){
-  if(!memoKeyboardActive){memoPreKeyboardTop=notePanel.getBoundingClientRect().top;memoKeyboardActive=true}
-  $('memoModal').classList.add('memo-keyboard-open');
-  notePanel.style.setProperty('--memo-keyboard-available',Math.max(120,visible.height-12)+'px');
-  // Height may change on the next layout pass after CSS is applied.
-  requestAnimationFrame(()=>{
-   if($('memoModal').hidden||!memoKeyboardActive)return;
-   const area=memoVisibleArea();
-   notePanel.style.top=Math.max(area.top+6,area.top+area.height-notePanel.offsetHeight-6)+'px';
-   notePanel.style.bottom='auto';
-  });
- }else if(memoKeyboardActive){
-  memoKeyboardActive=false;
-  $('memoModal').classList.remove('memo-keyboard-open');
-  notePanel.style.removeProperty('--memo-keyboard-available');
-  const restore=memoPreKeyboardTop;
-  memoPreKeyboardTop=null;
-  requestAnimationFrame(()=>{
-   if($('memoModal').hidden)return;
-   notePanel.style.top=clampNoteY(Number.isFinite(restore)?restore:notePanel.getBoundingClientRect().top)+'px';
-   notePanel.style.bottom='auto';
-  });
+ if(!focused){
+  clearTimeout(memoFocusTimer);
+  restoreMemoAfterKeyboard();
+  memoNormalViewportHeight=Math.max(window.innerHeight,document.documentElement.clientHeight,memoViewport()?.height||0);
+  return;
  }
+ const bounds=memoKeyboardBounds();
+ if(!bounds.shrunk && !memoFocusPending && !memoKeyboardActive)return;
+ if(!memoKeyboardActive){
+  memoPreKeyboardTop=notePanel.getBoundingClientRect().top;
+  memoKeyboardActive=true;
+ }
+ $('memoModal').classList.add('memo-keyboard-open');
+ parkMemoUnderKeyboard();
 }
-memoField.addEventListener('focus',()=>requestAnimationFrame(accommodateMemoKeyboard));
-memoField.addEventListener('blur',()=>setTimeout(accommodateMemoKeyboard,60));
+memoField.addEventListener('focus',()=>{
+ memoFocusPending=true;
+ // The keyboard opens asynchronously. Recheck after animation settles and
+ // still park below it on Samsung/in-app browsers without viewport resize.
+ requestAnimationFrame(accommodateMemoKeyboard);
+ clearTimeout(memoFocusTimer);
+ memoFocusTimer=setTimeout(()=>{if(document.activeElement===memoField){memoFocusPending=true;accommodateMemoKeyboard()}},300);
+});
+memoField.addEventListener('blur',()=>{
+ clearTimeout(memoFocusTimer);
+ setTimeout(accommodateMemoKeyboard,100);
+});
 window.visualViewport?.addEventListener('resize',accommodateMemoKeyboard);
 window.visualViewport?.addEventListener('scroll',accommodateMemoKeyboard);
 window.addEventListener('resize',accommodateMemoKeyboard);
-
 $('openVideoLibrary').addEventListener('click',()=>{$('videoLibraryStatus').textContent=$('mobileFileStatus').textContent||'MP4를 선택하세요.';$('videoLibraryModal').hidden=false});$('closeVideoLibrary').addEventListener('click',()=>$('videoLibraryModal').hidden=true);$('pickManyDialog').addEventListener('click',()=>$('multipleFiles').click());$('pickOneDialog').addEventListener('click',()=>$('singleFile').click());
 $('mobileRegister').addEventListener('click',()=>$('multipleFiles').click());$('mobileRegisterSingle').addEventListener('click',()=>$('singleFile').click());$('registerBtn').addEventListener('click',()=>$('singleFile').click());$('registerAllBtn').addEventListener('click',()=>$('multipleFiles').click());$('singleFile').addEventListener('change',e=>{importFiles([...e.target.files],true);e.target.value=''});$('multipleFiles').addEventListener('change',e=>{importFiles([...e.target.files]);e.target.value=''});
 // v9: clicking the app brand checks the latest shell, updates its service worker, then refreshes.

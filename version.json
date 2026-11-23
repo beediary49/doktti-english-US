@@ -1,11 +1,11 @@
 {
-  "version": "v12",
+  "version": "v13",
   "updated": "2026-11-23",
   "features": [
-    "v11-features-preserved",
-    "memo-repositions-above-phone-keyboard",
-    "memo-save-visible-with-keyboard",
-    "memo-returns-after-keyboard-closes",
-    "fixed-video-and-independent-sentence-scroll"
+    "v12-features-preserved",
+    "keyboard-open-memo-moves-under-keyboard",
+    "video-subtitles-unobstructed-while-typing",
+    "keyboard-closed-memo-position-restored",
+    "fixed-player-and-independent-list-scroll"
   ]
 }
