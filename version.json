@@ -1,11 +1,15 @@
 {
-  "version": "v13",
+  "version": "v16",
   "updated": "2026-11-23",
   "features": [
     "v12-features-preserved",
-    "keyboard-open-memo-moves-under-keyboard",
-    "video-subtitles-unobstructed-while-typing",
-    "keyboard-closed-memo-position-restored",
-    "fixed-player-and-independent-list-scroll"
+    "memo-vertical-drag-only",
+    "memo-may-move-behind-keyboard-boundary",
+    "keyboard-open-does-not-force-memo-position",
+    "fixed-video-independent-sentence-scroll",
+    "manual-completion-button-right-of-star",
+    "completion-button-removed-from-memo",
+    "manual-completion-only",
+    "slightly-larger-buttons-and-script-text"
   ]
 }
