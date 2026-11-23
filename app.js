@@ -37,10 +37,49 @@ function openMemo(targetIndex=index){if(!lesson)return;memoContextIndex=Math.max
 function updateCompleteButton(){const done=!!state.manualDone[lesson?.id]?.[memoContextIndex];$('memoComplete').textContent=done?'✓ 학습 완료됨':'✓ 학습 완료';$('memoComplete').classList.toggle('on',done)}
 function saveMemo(close=false){if(!lesson||memoContextIndex===null)return;state.memos[lesson.id+'@'+memoContextIndex]=$('memoText').value;save();if(close)$('memoModal').hidden=true;renderList()}
 $('memoSave').addEventListener('click',()=>saveMemo(true));$('memoComplete').addEventListener('click',()=>{if(!lesson||memoContextIndex===null)return;state.manualDone[lesson.id]??={};state.manualDone[lesson.id][memoContextIndex]=!state.manualDone[lesson.id][memoContextIndex];saveMemo(false);updateCompleteButton()});document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('memoModal').hidden=true;$('videoLibraryModal').hidden=true}});
-// Floating memo similar to Intern Shadowing v45. On mobile, stays within the visible study area.
-let dragStart=null;const notePanel=$('notePanel');function positionNote(){notePanel.style.left='';notePanel.style.top='';notePanel.style.right='';notePanel.style.bottom=''}
-$('noteDrag').addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;dragStart={x:e.clientX,y:e.clientY,left:notePanel.getBoundingClientRect().left,top:notePanel.getBoundingClientRect().top};$('noteDrag').setPointerCapture(e.pointerId)});
-$('noteDrag').addEventListener('pointermove',e=>{if(!dragStart)return;const w=notePanel.offsetWidth,h=notePanel.offsetHeight;const x=Math.max(0,Math.min(innerWidth-w,dragStart.left+(e.clientX-dragStart.x)));const y=Math.max(0,Math.min(innerHeight-h,dragStart.top+(e.clientY-dragStart.y)));notePanel.style.left=x+'px';notePanel.style.top=y+'px';notePanel.style.right='auto';notePanel.style.bottom='auto'});$('noteDrag').addEventListener('pointerup',()=>dragStart=null);$('noteDrag').addEventListener('pointercancel',()=>dragStart=null);
+// v11: floating memo moves vertically only; retain CSS-defined horizontal anchor.
+// Transparent backdrop lets the sentence list keep scrolling while video/header remain fixed.
+let dragStart=null;
+const notePanel=$('notePanel');
+const noteHandle=$('noteDrag');
+function positionNote(){
+  dragStart=null;
+  notePanel.style.top='';
+  notePanel.style.bottom='';
+  // Keep the original desktop-right / mobile-centered horizontal placement.
+  notePanel.style.left='';
+  notePanel.style.right='';
+}
+function clampNoteY(y){
+  const vh=window.visualViewport?.height||window.innerHeight;
+  const offsetY=window.visualViewport?.offsetTop||0;
+  return Math.max(offsetY+6,Math.min(offsetY+vh-notePanel.offsetHeight-6,y));
+}
+noteHandle.addEventListener('pointerdown',e=>{
+  if(e.button!==undefined&&e.button!==0)return;
+  dragStart={pointerId:e.pointerId,fromY:e.clientY,top:notePanel.getBoundingClientRect().top};
+  noteHandle.setPointerCapture(e.pointerId);
+});
+noteHandle.addEventListener('pointermove',e=>{
+  if(!dragStart||e.pointerId!==dragStart.pointerId)return;
+  // Never change left/right; dragging cannot shift the memo sideways.
+  notePanel.style.top=clampNoteY(dragStart.top+e.clientY-dragStart.fromY)+'px';
+  notePanel.style.bottom='auto';
+});
+function stopNoteDrag(e){
+  if(!dragStart||e.pointerId!==dragStart.pointerId)return;
+  dragStart=null;
+  if(noteHandle.hasPointerCapture?.(e.pointerId))noteHandle.releasePointerCapture(e.pointerId);
+}
+noteHandle.addEventListener('pointerup',stopNoteDrag);
+noteHandle.addEventListener('pointercancel',stopNoteDrag);
+// Keep an open memo within view after a phone rotates or keyboard changes the viewport.
+function keepNoteVisible(){
+  if($('memoModal').hidden||!notePanel.style.top)return;
+  notePanel.style.top=clampNoteY(notePanel.getBoundingClientRect().top)+'px';
+}
+window.addEventListener('resize',keepNoteVisible);
+window.visualViewport?.addEventListener('resize',keepNoteVisible);
 $('openVideoLibrary').addEventListener('click',()=>{$('videoLibraryStatus').textContent=$('mobileFileStatus').textContent||'MP4를 선택하세요.';$('videoLibraryModal').hidden=false});$('closeVideoLibrary').addEventListener('click',()=>$('videoLibraryModal').hidden=true);$('pickManyDialog').addEventListener('click',()=>$('multipleFiles').click());$('pickOneDialog').addEventListener('click',()=>$('singleFile').click());
 $('mobileRegister').addEventListener('click',()=>$('multipleFiles').click());$('mobileRegisterSingle').addEventListener('click',()=>$('singleFile').click());$('registerBtn').addEventListener('click',()=>$('singleFile').click());$('registerAllBtn').addEventListener('click',()=>$('multipleFiles').click());$('singleFile').addEventListener('change',e=>{importFiles([...e.target.files],true);e.target.value=''});$('multipleFiles').addEventListener('change',e=>{importFiles([...e.target.files]);e.target.value=''});
 // v9: clicking the app brand checks the latest shell, updates its service worker, then refreshes.

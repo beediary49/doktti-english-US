@@ -1,11 +1,10 @@
 {
-  "version": "v10",
+  "version": "v11",
   "updated": "2026-11-23",
   "features": [
-    "fixed-video-and-header",
-    "scrollable-sentences-only",
-    "removed-right-play-button",
-    "tap-sentence-to-play",
-    "existing-v9-features-preserved"
+    "v10-features-preserved",
+    "memo-vertical-only-drag",
+    "memo-does-not-block-sentence-scroll",
+    "fixed-video-when-memo-open"
   ]
 }
